@@ -1,0 +1,20 @@
+---
+title: "Case_Study_1_Analysis"
+author: "Team 100"
+date: "1/15/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Variable Selection
+
+We will use lm, forward/backward selection, and BMA to explore variable selection.
+
+```{r load}
+Longnecker <- readRDS("/cloud/project/Longnecker.rds")
+```
+
+
