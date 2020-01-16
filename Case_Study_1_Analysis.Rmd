@@ -9,16 +9,29 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Variable Selection
-
-We will use lm, forward/backward selection, and BMA to explore variable selection.
-
 ```{r load}
 library(BMS)
 library(dplyr)
 library(tidyr)
 Longnecker <- readRDS("/cloud/project/Longnecker.rds")
 ```
+
+
+## Correlation
+
+**This may be a little misleading because I converted everything into numeric (including smoking status, centers, and race). I'll figure out factors later for these I hope.
+
+```{r}
+library(corrplot)
+corrplot.mixed(cor(Longnecker %>% select(starts_with("pcb_")) %>% drop_na() %>% sapply(.,as.numeric)), order="hclust", tl.col="black")
+corrplot.mixed(cor(Longnecker %>% select(-starts_with("pcb_"),-albumin) %>% drop_na() %>% sapply(.,as.numeric)), order="hclust", tl.col="black")
+```
+
+We observe that PCB variations are positively correlated with one another, and that certain groups of variables are also correlated (education, occupation, & income; triglycerides & cholesterol; race & center; race & dde; maternal age & triglycerides, etc.).
+
+## Variable Selection
+
+We will use lm and BMA to explore variable selection. By getting rid of the albumin and score columns, we have very little missing data (2379/2380 original observations).
 
 ```{r}
 #removing uninterpretable (at the moment) vars and albumin
@@ -40,6 +53,8 @@ Longnecker_potential <- Longnecker_potential %>%
 
 #moving gest_age to the front of the data frame
 Longnecker_potential<-cbind(Longnecker_potential %>% select(gestational_age),Longnecker_potential %>% select(-gestational_age))
+names(Longnecker_potential)[11:22]<-paste(LETTERS[1:12],LETTERS[1:12],sep="_")
+
 
 #simple lm model suggests race, center, and triglycerides have significant effects
 #terrible R-squared, but this might be taken care of using transformations and splitting by our random effects
@@ -52,3 +67,12 @@ coef(mfls,exact=TRUE)
 ```
 
 The results from BMA suggest that triglycerides, centers, and race have non-zero coefficients for most of the models explored. DDE is also non-zero in a significant proportion of them. This is corroborated by the naive linear model. 
+
+```{r}
+bms(gestational_age ~ dde+triglycerides+black+E_E+F_F, burn = 1000, iter = NA, nmodel = 1000, mcmc = "bd",
+  g = "UIP", mprior = "uniform", mprior.size = NA, user.int = TRUE, 
+    start.value = NA, g.stats = TRUE, 
+    logfile = FALSE, logstep = 10000, force.full.ols = FALSE, 
+    fixed.reg = numeric(0), data = Longnecker_potential, randomizeTimer = TRUE)
+```
+
