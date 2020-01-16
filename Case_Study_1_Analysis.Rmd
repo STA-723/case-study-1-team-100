@@ -14,7 +14,41 @@ knitr::opts_chunk$set(echo = TRUE)
 We will use lm, forward/backward selection, and BMA to explore variable selection.
 
 ```{r load}
+library(BMS)
+library(dplyr)
+library(tidyr)
 Longnecker <- readRDS("/cloud/project/Longnecker.rds")
 ```
 
+```{r}
+#removing uninterpretable (at the moment) vars and albumin
+Longnecker_potential<-Longnecker %>% 
+  select(-albumin,-score_education,-score_income,-score_occupation)
 
+#sum PCBs, treat race and center as factor random effects 
+#if someone knows a better way to pivot_wide race and center lmk because this was a pain
+Longnecker_potential <- Longnecker_potential %>%
+  mutate(pcb= Longnecker_potential %>% 
+           select(starts_with("pcb")) %>% rowSums()) %>%
+  select(-starts_with("pcb_")) %>%
+  pivot_wider(names_from=race,values_from=race) %>%
+  mutate(white=as.numeric(white=="white"),
+         black=as.numeric(black=="black"),
+         other=as.numeric(other=="other")) %>%
+  replace_na(list(white=0,black=0,other=0)) %>%
+  pivot_wider(names_from=center,values_from=center,values_fill = list(center=0),values_fn = list(center=function(x) x/x)) 
+
+#moving gest_age to the front of the data frame
+Longnecker_potential<-cbind(Longnecker_potential %>% select(gestational_age),Longnecker_potential %>% select(-gestational_age))
+
+#simple lm model suggests race, center, and triglycerides have significant effects
+#terrible R-squared, but this might be taken care of using transformations and splitting by our random effects
+lm_model<-lm(gestational_age ~ .,Longnecker_potential)
+summary(lm_model)
+
+#BMA model 
+mfls <- bms(Longnecker_potential, burn=100000, iter=200000, g="BRIC", mprior="uniform", nmodel=2000, mcmc="bd", user.int=FALSE)
+coef(mfls,exact=TRUE)
+```
+
+The results from BMA suggest that triglycerides, centers, and race have non-zero coefficients for most of the models explored. DDE is also non-zero in a significant proportion of them. This is corroborated by the naive linear model. 
