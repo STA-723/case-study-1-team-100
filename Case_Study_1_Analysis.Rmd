@@ -29,14 +29,53 @@ corrplot.mixed(cor(Longnecker %>% select(-starts_with("pcb_"),-albumin) %>% drop
 
 We observe that PCB variations are positively correlated with one another, and that certain groups of variables are also correlated (education, occupation, & income; triglycerides & cholesterol; race & center; race & dde; maternal age & triglycerides, etc.).
 
-## Variable Selection
+## Normality Checking
 
-We will use lm and BMA to explore variable selection. By getting rid of the albumin and score columns, we have very little missing data (2379/2380 original observations).
+```{r}
+Longnecker_realistic<-Longnecker %>% filter(gestational_age<=50)
+hist(Longnecker_realistic$gestational_age,breaks=25)
+
+lm_model<-lm(gestational_age ~ .,Longnecker_realistic)
+
+plot(lm_model,which=2)
+```
+
+
+## Variable Selection (new GLM version)
+
+TODO: mutate gest-age to categorical, run bic.glm
+```{r}
+library(BMA)
+#removing uninterpretable (at the moment) vars and albumin
+Longnecker_realistic<-Longnecker_realistic %>% 
+  select(-albumin,-score_education,-score_income,-score_occupation) %>% drop_na()
+
+Longnecker_realistic<-Longnecker_realistic %>%
+  mutate(pcb= Longnecker_realistic %>% 
+            select(pcb=starts_with("pcb")) %>% rowSums()) %>% 
+  select(-starts_with("pcb_"))
+  #%>% mutate(ones=1) %>%
+  # select(-starts_with("pcb_")) %>%
+  # pivot_wider(names_from=race,values_from=ones) %>% mutate(ones=1) %>%
+  # replace_na(list(white=0,black=0,other=0)) %>%
+  # pivot_wider(names_from=center,values_from=ones)
+
+#Longnecker_realistic[is.na(Longnecker_realistic)]<-0
+
+#names(Longnecker_realistic)[11:22]<-paste(LETTERS[1:12],LETTERS[1:12],sep="_")
+
+Longnecker_realistic<-Longnecker_realistic %>% mutate(gestational_age=case_when(gestational_age<=36~0, gestational_age>36~1))
+
+bic.glm(x=Longnecker_realistic %>% select(-gestational_age),y=Longnecker_realistic$gestational_age,glm.family = "binomial")
+```
+
+
+## Multi-logit Var Selection
 
 ```{r}
 #removing uninterpretable (at the moment) vars and albumin
 Longnecker_potential<-Longnecker %>% 
-  select(-albumin,-score_education,-score_income,-score_occupation)
+  select(-albumin,-score_education,-score_income,-score_occupation) %>% drop_na()
 
 #sum PCBs, treat race and center as factor random effects 
 #if someone knows a better way to pivot_wide race and center lmk because this was a pain
@@ -51,6 +90,39 @@ Longnecker_potential <- Longnecker_potential %>%
   replace_na(list(white=0,black=0,other=0)) %>%
   pivot_wider(names_from=center,values_from=center,values_fill = list(center=0),values_fn = list(center=function(x) x/x)) 
 
+names(Longnecker_potential)[11:22]<-paste(LETTERS[1:12],LETTERS[1:12],sep="_")
+
+Longnecker_potential<-Longnecker_potential %>% mutate(gestational_age=case_when(gestational_age<=33~0, gestational_age>33 & gestational_age<=36~1,gestational_age>36~2))
+```
+
+
+```{r}
+bic.mlogit(gestational_age ~ ., Longnecker_potential)
+```
+
+
+## Variable Selection (Old LM version)
+
+We will use lm and BMA to explore variable selection. By getting rid of the albumin and score columns, we have very little missing data (2379/2380 original observations).
+
+```{r}
+#removing uninterpretable (at the moment) vars and albumin
+Longnecker_potential<-Longnecker %>% 
+  select(-albumin,-score_education,-score_income,-score_occupation) %>% drop_na()
+
+#sum PCBs, treat race and center as factor random effects 
+#if someone knows a better way to pivot_wide race and center lmk because this was a pain
+# Longnecker_potential <- Longnecker_potential %>%
+#   mutate(pcb= Longnecker_potential %>% 
+#            select(starts_with("pcb")) %>% rowSums()) %>%
+#   select(-starts_with("pcb_")) %>%
+#   pivot_wider(names_from=race,values_from=race) %>%
+#   mutate(white=as.numeric(white=="white"),
+#          black=as.numeric(black=="black"),
+#          other=as.numeric(other=="other")) %>%
+#   replace_na(list(white=0,black=0,other=0)) %>%
+#   pivot_wider(names_from=center,values_from=center,values_fill = list(center=0),values_fn = list(center=function(x) x/x)) 
+
 #moving gest_age to the front of the data frame
 Longnecker_potential<-cbind(Longnecker_potential %>% select(gestational_age),Longnecker_potential %>% select(-gestational_age))
 names(Longnecker_potential)[11:22]<-paste(LETTERS[1:12],LETTERS[1:12],sep="_")
@@ -64,6 +136,16 @@ summary(lm_model)
 #BMA model 
 mfls <- bms(Longnecker_potential, burn=100000, iter=200000, g="BRIC", mprior="uniform", nmodel=2000, mcmc="bd", user.int=FALSE)
 coef(mfls,exact=TRUE)
+
+Longnecker_potential %>%
+  mutate(pcb= Longnecker_potential %>% 
+           select(starts_with("pcb")) %>% rowSums(), ones=1) %>%
+  select(-starts_with("pcb_")) %>%
+  pivot_wider(names_from=race,values_from=ones) %>% mutate(ones=1) %>%
+  replace_na(list(white=0,black=0,other=0)) %>%
+  pivot_wider(names_from=center,values_from=ones)
+
+Longnecker_potential[is.na(Longnecker_potential)]<-0
 ```
 
 The results from BMA suggest that triglycerides, centers, and race have non-zero coefficients for most of the models explored. DDE is also non-zero in a significant proportion of them. This is corroborated by the naive linear model. 
