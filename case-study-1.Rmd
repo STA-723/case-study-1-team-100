@@ -26,7 +26,7 @@ library("BMA")
 
 ## 1: Introduction
 
-We study how DDE (Dichlorodiphenyldichloroethylene) and PCBs (Polychlorinated Biphenyls) relate to risk of pre-mature delivery, which is associated with high risk of morbidity and mortality for the child. We use a sample of 2,380 women and children provided by Longnecker, et al. (2001) and initially provided by the National Collaborative Perinatal Project. DDE and PCBs have been used to treat crops, in order to limit their predation, and, as a result, are present in the environment and expose humans. These chemicals build up in fat in human tissues, and can have an impact on human health, including risk of pre-mature delivery.
+We study how DDE (Dichlorodiphenyldichloroethylene) and PCBs (Polychlorinated Biphenyls) relate to risk of pre-mature delivery, which is associated with high risk of morbidity and mortality for the child. We use a sample of 2,380 women and children from Longnecker, et al. (2001) and initially provided by the National Collaborative Perinatal Project. DDE and PCBs have been used to treat crops in order to limit their predation, and, as a result, are present in the environment and expose humans. These chemicals build up in fat in human tissues, and can have an impact on human health, including risk of pre-mature delivery.
 
 The data include various demographic variables (race, age, and socioeconomic index), smoking status, concentration doses of DDE and PCBs due to exposure, and cholesterol and triglycerides levels. We define pre-term pregnancy with a cut-off of 36 weeks or fewer, which tends to be the region around which there begins higher risk of morbidity and mortality for the child.
 
@@ -50,13 +50,13 @@ We evaluate model fit using BIC and AIC.
 
 ## 4: Discussion
 
-Our results find that the effect for average PCB is not significant, meaning there is no evidence of an association between PCB exposure and risk of pre-term delivery. However, higher DDE exposure is associated with higher risk of pre-term delivery. A one unit increase in DDE is associated with decreasing the expected odds of having a full-term pregnancy by approximately a factor of 2 (0.72 decrease in the expected log odds), holding everything else fixed. In addition, we find several other interesting pieces of insight. Higher triglycerides are associated with a higher risk of preterm delivery, as are being a non-white mother.
+Our results find that the effect for average PCB is not significant, meaning there is no evidence of an association between PCB exposure and risk of pre-term delivery. However, higher DDE exposure is associated with higher risk of pre-term delivery. A one unit increase in DDE is associated with decreasing the expected odds of having a full-term pregnancy by approximately a factor of 2 (0.72 decrease in the expected log odds), holding everything else fixed. In addition, we find several other interesting pieces of insight. Higher triglycerides are associated with a higher risk of pre-term delivery, as are being a non-white mother.
 
 TODO: advantages/disadvantages
 
-These results are consistent with some of the trends we saw in our exploratory plots and with current literature surrounding pre-term deliveries. Future directions for analysis include (1) sensitivity analysis on the number of weeks that defines a pre-term birth, (2) multiple category outcome model using Bayesian GLMM, and (3) accounting for natural ordering in outcome via a proportional odds model.
+These results are consistent with some of the trends we saw in our exploratory plots and with current literature surrounding pre-term deliveries. Future directions for analysis include (1) sensitivity analysis on the number of weeks that defines a pre-term birth, (2) multiple category outcome modeling using Bayesian GLMM, and (3) accounting for natural ordering in outcome via a proportional odds model.
 
-## 5: Appendix
+## Appendix: Figures & Analysis
 
 ```{r data, include=FALSE}
 data <- readRDS("Longnecker.rds")
@@ -70,8 +70,7 @@ complete_albumin <- data %>% filter(!is.na(albumin))
 percentage_missing_albumin <- 1 - nrow(complete_albumin)/nrow(data)
 percentage_missing_albumin
 
-# dde, triglycerides, race, age, smoking status, cholesterol
-# gestational age, center have no missingness
+# dde, triglycerides, race, age, smoking status, cholesterol gestational age, center have no missingness
 data %>% filter(!is.na(dde))
 data %>% filter(!is.na(triglycerides)) 
 data %>% filter(!is.na(race)) 
@@ -81,7 +80,7 @@ data %>% filter(!is.na(cholesterol))
 data %>% filter(!is.na(gestational_age)) 
 data %>% filter(!is.na(center)) 
 
-# pcb's are each missing 1 value
+# PCBs are each missing 1 value
 data %>% filter(!is.na(pcb_028))
 data %>% filter(!is.na(pcb_052))
 data %>% filter(!is.na(pcb_074))
@@ -139,7 +138,7 @@ data %>%
 # triglycerides by outcome
 data %>% 
   filter(gestational_age < 60) %>% 
-  ggplot(., aes(x=triglycerides, y=gestational_age)) +geom_point() + 
+  ggplot(., aes(x=triglycerides, y=gestational_age)) + geom_point() + 
   geom_smooth(method="lm", formula=y ~ x)
 
 # boxplot of outcome by center
@@ -162,7 +161,7 @@ data %>%
   filter(gestational_age < 60) %>% 
   ggplot(aes(x=race, y=gestational_age, color=race)) + 
   geom_boxplot() + 
-  facet_wrap(.~center) +
+  facet_wrap(. ~ center) +
   theme_bw()
 
 # number of races per center
@@ -201,7 +200,7 @@ g1 <- samp_stats %>% mutate(se=sqrt(variance)) %>%
   ggplot(aes(x=center, y=avg_gest, color=center)) +
   geom_point() +
   theme_bw() +
-  geom_errorbar(aes(ymin=avg_gest - se, ymax=avg_gest+se), width=.5) +
+  geom_errorbar(aes(ymin=avg_gest - se, ymax=avg_gest + se), width=.5) +
   theme(legend.position="none",
         axis.text.x=element_text(angle=90, size=7, vjust=0.5, hjust=1))
 g1
@@ -237,8 +236,7 @@ data %>% ggplot() +
 # relationship between age and smoking status
 # no constant (or parallel), so indicates interactive effect
 data %>% ggplot() +
-  aes(x=maternal_age, color=smoking_status, group=smoking_status,
-      y=gestational_age) +
+  aes(x=maternal_age, color=smoking_status, group=smoking_status, y=gestational_age) +
   stat_summary(fun.y=mean, geom="point") +
   stat_summary(fun.y=mean, geom="line") + 
   theme_bw()
@@ -268,11 +266,11 @@ data <- data %>%
 data %>% group_by(center, race) %>% summarise(n_cat=n())
 
 data %>% ggplot(aes(x=gest_cat, y=gestational_age)) + geom_boxplot() + 
-  facet_wrap(.~center) +
+  facet_wrap(. ~ center) +
   theme_bw()
 
 data %>% ggplot(aes(x=gest_cat, y=gestational_age, color=race)) + geom_boxplot() + 
-  facet_wrap(.~center) +
+  facet_wrap(. ~ center) +
   theme_bw() 
 ```
 
@@ -282,8 +280,7 @@ data_realistic <- data_realistic %>%
   select(-albumin, -score_education, -score_income, -score_occupation) %>% drop_na()
 
 data_realistic <- data_realistic %>%
-  mutate(pcb=data_realistic %>%
-           select(pcb=starts_with("pcb")) %>% rowSums()) %>% 
+  mutate(pcb=data_realistic %>% select(pcb=starts_with("pcb")) %>% rowSums()) %>% 
   select(-starts_with("pcb_"))
 
 data_realistic <- data_realistic %>% mutate(gestational_age=case_when(gestational_age <= 36 ~ 0,
@@ -301,12 +298,12 @@ summary(m1)
 
 # model w/ random slope for race 
 m2 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + min_pcb + max_pcb +
-           avg_pcb + (0 + race|center), data=data, REML=FALSE)
+           avg_pcb + (race|center), data=data, REML=FALSE)
 summary(m2)
 
 # model w/ random slope for race and random intercept for centers
 m3 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + min_pcb + max_pcb +
-           avg_pcb + (1 + race|center), data=data, REML=FALSE,
+           avg_pcb + (1|center) + (race|center), data=data, REML=FALSE,
            control=lmerControl(optimizer="Nelder_Mead"))
 summary(m3) # might be overfitting
 
@@ -328,18 +325,18 @@ plot(m1); plot(m2); plot(m3); plot(m4); plot(m5)
 
 ```{r glmm models}
 # model w/ random intercept for centers 
-m1 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100)+ avg_pcb + race + (1|center), family=binomial,
+m1 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100) + avg_pcb + race + (1|center), family=binomial,
             control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)), data=data) 
 summary(m1)
 
 # model w/ random slope for race 
-m2 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100) + avg_pcb + race + (0 + race|center),
+m2 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100) + avg_pcb + race + (race|center),
             family=binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)),
             data=data)
 summary(m2)
 
 # model w/ random slope for race and random intercept for centers
-m3 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100) + avg_pcb + race + (race|center),
+m3 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100) + avg_pcb + race + (1|center) + (race|center),
             family=binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)),
             data=data) 
 summary(m3)
