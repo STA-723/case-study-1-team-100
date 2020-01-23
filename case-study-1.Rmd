@@ -53,7 +53,7 @@ We evaluate model fit using BIC and AIC.
 
 Our results find that the effect for average PCB is not significant, meaning there is no evidence of an association between PCB exposure and risk of pre-term delivery. However, higher DDE exposure is associated with higher risk of pre-term delivery. A one unit increase in DDE is associated with decreasing the expected odds of having a full-term pregnancy by approximately a factor of 2 (0.72 decrease in the expected log odds), holding everything else fixed. In addition, we find several other interesting pieces of insight. Higher triglycerides are associated with a higher risk of pre-term delivery, as are being a non-white mother.
 
-TODO: advantages/disadvantages
+There are various advantages and disadvantages of the approach we took. On one hand, regression is highly interpretable, and interpretability is important for disciplines like the health and sciences. (We also used the min, max, and average PCB exposures instead of doing PCA since the former is more interpretable.) Furthermore, using a random intercept model allows us to take into account the heterogeneity across centers in our model. On the flip side, as discussed in the results, not all of the assumptions for logistic regression were satisfied in this study (particularly the linearity assumption). Logistic regression also only gives a binary outcome: pre-term or full-term, which may not be as useful as the outcome predicted from ordinal, quantile, or linear regression, which would provide more specificity on the time range in which delivery occurs.
 
 These results are consistent with some of the trends we saw in our exploratory plots and with current literature surrounding pre-term deliveries. Future directions for analysis include (1) sensitivity analysis on the number of weeks that defines a pre-term birth, (2) multiple category outcome modeling using Bayesian GLMM, and (3) accounting for natural ordering in outcome via a proportional odds model.
 
@@ -299,7 +299,7 @@ summary(m1)
 
 # model w/ random slope for race 
 m2 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + min_pcb + max_pcb +
-           avg_pcb + (race|center), data=data, REML=FALSE)
+           avg_pcb + (0 + race|center), data=data, REML=FALSE)
 summary(m2)
 
 # model w/ random slope for race and random intercept for centers
@@ -331,7 +331,7 @@ m1 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100) + avg_pcb + race + (1|c
 summary(m1)
 
 # model w/ random slope for race 
-m2 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100) + avg_pcb + race + (race|center),
+m2 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100) + avg_pcb + race + (0 + race|center),
             family=binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)),
             data=data)
 summary(m2)
@@ -377,8 +377,10 @@ ggplot(mydata, aes(logit, predictor.value))+
   facet_wrap(~predictors, scales = "free_y")
 ```
 
+
 Multicollinearity doesn't appear to be a concern.
 ```{r multicol}
 car::vif(m1)
 ```
+
 
