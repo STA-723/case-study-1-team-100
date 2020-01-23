@@ -1,0 +1,376 @@
+---
+title: "Case Study 1"
+author: "Ezinne Nwankwo"
+date: "1/14/2020"
+output: pdf_document
+---
+
+```{r libraries, include = FALSE}
+library(magrittr)
+library(dplyr)
+library(tidyr)
+#library("dplyr")
+library("ggplot2")
+library(stringr)
+library("tidyverse")
+#library(plyr)
+library("lubridate")
+library(psych)
+#install.packages("readxl")
+library(readxl)
+library(brms)
+#install.packages("ggthemes")
+library("ggthemes")
+#install.packages("plotly")
+library(plotly)
+library(maps)
+#install.packages("mapproj")
+library("mapproj")
+library("lme4")
+library("kableExtra")
+library(grid)
+library(gridExtra)
+#install.packages("ordinal")
+#library(ordinal)
+search()
+detach("package:ordinal",  unload=TRUE)
+library(sjPlot)
+library(sjmisc)
+library(lattice)
+
+```
+
+
+```{r data, include=FALSE}
+Longnecker <- readRDS("~/Documents/Duke Courses/Spring 2020/STA 723/Case1/data/Longnecker.rds")
+Longnecker$smoking_status <- as.factor(Longnecker$smoking_status)
+Longnecker$center <- as.factor(Longnecker$center)
+
+```
+
+```{r missingness, include = FALSE}
+
+#albumin has a lot of missingness so will drop the entire column 
+complete_albumin <- Longnecker %>% filter(!is.na(albumin)) 
+percentage_missing_albumin <- 1 - nrow(complete_albumin)/nrow(Longnecker); percentage_missing_albumin
+
+#dde has no missingness
+Longnecker %>% filter(!is.na(dde)) 
+#triglycerides has no missingness
+Longnecker %>% filter(!is.na(triglycerides)) 
+#race has no missingness
+Longnecker %>% filter(!is.na(race)) 
+#age has no missingness
+Longnecker %>% filter(!is.na(maternal_age)) 
+#smoking status has no missingness
+Longnecker %>% filter(!is.na(smoking_status)) 
+#cholesterol has no missingness
+Longnecker %>% filter(!is.na(cholesterol)) 
+#gestational age has no missingness
+Longnecker %>% filter(!is.na(gestational_age)) 
+#center has no missingness 
+Longnecker %>% filter(!is.na(center)) 
+
+# pcb 
+Longnecker %>% filter(!is.na(pcb_028)) #pcb_028 has 1  
+Longnecker %>% filter(!is.na(pcb_052)) #pcb_028 has 1
+Longnecker %>% filter(!is.na(pcb_074)) #pcb_028 has 1
+Longnecker %>% filter(!is.na(pcb_105)) #pcb_028 has 1
+Longnecker %>% filter(!is.na(pcb_118)) #pcb_028 has 1
+Longnecker %>% filter(!is.na(pcb_153)) #pcb_028 has 1
+Longnecker %>% filter(!is.na(pcb_170)) #pcb_028 has 1
+Longnecker %>% filter(!is.na(pcb_138)) #pcb_028 has 1
+Longnecker %>% filter(!is.na(pcb_180)) #pcb_028 has 1
+Longnecker %>% filter(!is.na(pcb_194)) #pcb_028 has 1
+Longnecker %>% filter(!is.na(pcb_203)) #pcb_028 has 1
+
+# education, income occupation
+Longnecker %>% filter(!is.na(score_education)) # 481 (20%) missing 
+Longnecker %>% filter(!is.na(score_income)) # 515 (21%) missing
+Longnecker %>% filter(!is.na(score_occupation)) # 479 (20%) missing 
+
+# complete dataset
+df_complete <- Longnecker %>% filter_at(vars(pcb_028,pcb_052, pcb_074, pcb_105, pcb_118, pcb_153, pcb_170, pcb_138, pcb_180, pcb_194, pcb_203),all_vars(!is.na(.))) 
+
+```
+
+```{r eda}
+
+# hist of gestational age
+df_complete %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(gestational_age)) + geom_histogram()
+
+# boxplot of outcome by race
+df_complete %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x= race, y = gestational_age)) + geom_boxplot()
+
+# maternal age by outcome
+df_complete %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x = maternal_age, y = gestational_age, color = race)) + geom_point()
+
+#dde by outcome colored by centers
+df_complete %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x = dde, y = gestational_age, color = center)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", formula = y ~x)
+
+# triglycerides by outcome
+df_complete %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x = triglycerides, y = gestational_age)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", formula = y ~x) #+ 
+  #facet_wrap(.~center)
+
+# boxplot of outcome by center
+df_complete %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x = center, y = gestational_age)) + geom_boxplot()
+
+# boxplot of outcome by center
+df_complete %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x = race, y = gestational_age)) + geom_boxplot()
+
+# boxplot of outcome by smoking indicator
+df_complete %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x= smoking_status , y = gestational_age)) + geom_boxplot()
+
+# cholesteral by outcome
+df_complete %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x= cholesterol , y = gestational_age)) + geom_point()
+
+# boxplot of race by outcome by center
+df_complete %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(aes(x = race, y = gestational_age, color = race)) + 
+  geom_boxplot() + 
+  facet_wrap(.~center) +
+  theme_bw()
+
+# number of races per center
+df_complete %>% 
+  group_by(race, center) %>% 
+  summarise(n_race = n())
+
+# log transform of outcoome
+df_complete %>% 
+  ggplot(aes(log(gestational_age))) + geom_histogram()
+
+```
+
+```{r sum_stats}
+
+#calculating summary stats for outcome gestational age by center
+samp_stats <- df_complete %>% 
+  group_by(center) %>%
+  summarise(nj = n(), avg_gest = mean(gestational_age), variance = var(gestational_age)) %>%
+  data.frame() 
+
+df_complete %>% 
+  group_by(race) %>%
+  summarise(nj = n(), avg_gest = mean(gestational_age), variance = var(gestational_age)) %>%
+  data.frame() 
+
+samp_stats %>% 
+  ggplot(aes(x = center, y = nj)) + geom_bar(stat = "identity", color = "black", fill = "#999999") + 
+  theme_bw()
+
+#plotting summuary stats
+ g1 <- samp_stats %>% 
+  mutate(se = sqrt(variance)) %>% 
+  ggplot(aes(x = center, y = avg_gest, color = center)) +
+  geom_point() +
+  theme_bw() +
+  geom_errorbar(aes(ymin=avg_gest-se, ymax=avg_gest+se), width=.5) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 90, size = 7, vjust=0.5, hjust=1)) #+
+  #labs(title = "Fig 2a - Hospital Avg Net Income per state",
+  #     x = "State", y = "Avg Net Income (USD)")
+ 
+ g1
+
+```
+
+```{r sum_stats2}
+
+# more summary stats of outcome and dde by center
+df2 <- df_complete %>% 
+  group_by(center) %>%
+  summarise(center_samp_size = n(), avg_gest = mean(gestational_age), avg_dde = mean(dde)) 
+
+top_5 <- df2 %>% top_n(n = 5, center_samp_size)
+bot_5 <- df2 %>% top_n(n = -5, center_samp_size)
+#center_ssize <- df2 %>% top_n(n = 2, center_samp_size)
+
+df2 %>% 
+  ggplot(aes(x = avg_dde, y = avg_gest, size = center_samp_size )) + 
+  geom_point(shape = 21, fill = "#F8766D" ) +
+  annotate("text", x = top_5$avg_dde +1, y = top_5$avg_gest, label = top_5$center) +
+  annotate("text", x = bot_5$avg_dde -1 , y = bot_5$avg_gest, label = bot_5$center, colour = "red") +
+  #annotate("text", x = center_ssize$avg_dde - 1, y = center_ssize$avg_gest, colour = "red",
+           #label = center_ssize$center) +
+  theme_bw() +
+  labs(y = "Average DDE per Center", x= "Avg Gest Age per Center",
+       title = "Avg DDE vs Avg Gest Age per Center") 
+
+```
+
+```{r interact_eda}
+
+# relationship between race and smoking status
+# no constant (or parallel) so indicates interactive effect
+df_complete%>% 
+  ggplot() +
+  aes(x = race, color = smoking_status, group = smoking_status, y = gestational_age) +
+  stat_summary(fun.y = mean, geom = "point") +
+  stat_summary(fun.y = mean, geom = "line") + 
+  theme_bw() 
+
+# relationship between age and smoking status
+# no constant (or parallel) so indicates interactive effect
+df_complete%>% 
+  ggplot() +
+  aes(x = maternal_age, color = smoking_status, group = smoking_status, y = gestational_age) +
+  stat_summary(fun.y = mean, geom = "point") +
+  stat_summary(fun.y = mean, geom = "line") + 
+  theme_bw()
+
+# relationship between race and age
+# no constant (or parallel) so indicates interactive effect
+df_complete%>% 
+  ggplot() +
+  aes(x = maternal_age, color = race, group = race, y = gestational_age) +
+  stat_summary(fun.y = mean, geom = "point") +
+  stat_summary(fun.y = mean, geom = "line") + 
+  theme_bw()
+
+
+
+
+
+```
+
+```{r lmm models}
+
+# model w/ random intercept for centers 
+m1 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + race + min_pcb + max_pcb + avg_pcb + (1|center), data = df_complete2, REML = FALSE) 
+summary(m1)
+
+# model w/ random slope for race 
+m2 <- lmer(gestational_age ~dde + triglycerides + smoking_status*maternal_age + min_pcb + max_pcb + avg_pcb +  (0 + race|center), data = df_complete2, REML = FALSE) 
+summary(m2)
+
+# model w/ random slope for race and random intercept for centers
+m3 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + min_pcb + max_pcb + avg_pcb + (1+ race|center), data = df_complete2, REML = FALSE, control = lmerControl(optimizer ="Nelder_Mead"))
+summary(m3) ## may be overfitting to singularity and complexity of model, colinearity with pcb
+
+# simple linear regression model
+m4_lm <- lm(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + race + min_pcb + max_pcb + avg_pcb + cholesterol, data = df_complete2)
+summary(m4_lm)
+
+# simple linear regression using bma variables selection
+m5_bma <- lm(gestational_age ~ triglycerides + race + center + dde + max_pcb + min_pcb + avg_pcb, data = df_complete2)
+summary(m5_bma)
+
+
+
+# model fit
+BIC(m1)
+BIC(m2)
+BIC(m3)
+BIC(m4_lm)
+BIC(m5_bma)
+
+# residual plots
+plot(m2,ylab='')
+plot(m1,ylab='')
+plot(m3,ylab='')
+
+## Test out model with and without outliers
+
+```
+
+
+```{r tranforming vars}
+
+#transforming the gestational_age to multi-class
+#https://www.ncbi.nlm.nih.gov/books/NBK279571/ paper that gives accurate cutoffs for preterm/postterm pregnancies
+# transforming continous outcome and creating new variables for pcb
+df_complete2 <- df_complete %>% 
+  mutate(gest_cat=cut(gestational_age, breaks=c(-Inf, 35,Inf), labels=c("preterm","not_preterm"))) %>% 
+  rowwise() %>% 
+  mutate(min_pcb = min(pcb_028,pcb_052,pcb_074,pcb_105, pcb_118, pcb_153, pcb_170, pcb_180
+                       , pcb_194, pcb_203),
+         max_pcb =max(pcb_028,pcb_052,pcb_074,pcb_105, pcb_118, pcb_153, pcb_170, pcb_180
+                       , pcb_194, pcb_203),
+         avg_pcb = mean(c(pcb_028,pcb_052,pcb_074,pcb_105, pcb_118, pcb_153, pcb_170, pcb_180
+                       , pcb_194, pcb_203)))
+
+df_complete2 %>% 
+  group_by(center, race) %>% 
+  summarise(n_cat = n())
+
+df_complete2 %>% 
+  ggplot(aes(x=gest_cat, y = gestational_age)) + geom_boxplot() + 
+  facet_wrap(.~center) +
+  theme_bw()
+
+df_complete2 %>% 
+  ggplot(aes(x = gest_cat, y = gestational_age, color = race)) + 
+  geom_boxplot() + 
+  facet_wrap(.~center) +
+  theme_bw() 
+
+```
+
+```{r glmms}
+
+glm_int <- glmer(gest_cat ~ I(triglycerides/100)  + I(dde/100)  + avg_pcb + race+ (1|center) , family=binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)), data = df_complete2) 
+summary(glm_int)
+#plot(glm_int, ylab = '')
+
+#glm_int1 <- glmer(gest_cat ~ I(triglycerides/100) +race + center + I(dde/100) + max_pcb + (1|center) , family=binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)), data = df_complete2) 
+#summary(glm_int1) 
+
+#glm_int2 <- glmer(gest_cat ~ triglycerides +race + center + dde + min_pcb + (1|center) , family=binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)), data = df_complete2) 
+#summary(glm_int2) 
+
+glm_norand <- glm(gest_cat ~ 1 + I(triglycerides/100) + I(dde/100) + center + avg_pcb + race, family=binomial, data=df_complete2)
+
+
+summary(glm_norand)
+
+glm_slope <- glmer(gest_cat ~ I(triglycerides/100)  + I(dde/100) + avg_pcb + race + (race|center) , family=binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)), data = df_complete2) 
+summary(glm_slope) 
+
+#glm_slope1 <- glmer(gest_cat ~ I(triglycerides/100)  + I(dde/100)  + avg_pcb  + race + (-1 + race|center) , family=binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)), data = df_complete2) 
+#summary(glm_slope1) 
+
+
+#BIC(glm_int, glm_int1, glm_int2)
+#BIC(glm_norand, glm_int, glm_slope, glm_slope1)  
+BIC(glm_norand, glm_int, glm_slope)
+anova(glm_int,glm_slope)
+
+
+```
+
+
+
+```{r LR}
+anova(glm_int, glm_slope)
+```
+```{r}
+#library(sjmisc)
+#plot_model(glm_int)
+lattice::dotplot(ranef(glm_int, which = "center", condVar = TRUE))
+lattice::dotplot(ranef(glm_slope, which = "center", condVar = TRUE))
+```
+
