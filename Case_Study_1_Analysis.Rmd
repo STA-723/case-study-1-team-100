@@ -40,6 +40,13 @@ lm_model<-lm(gestational_age ~ .,Longnecker_realistic)
 plot(lm_model,which=2)
 ```
 
+```{r}
+ggplot(mydata, aes(logit, predictor.value))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "loess") + 
+  theme_bw() + 
+  facet_wrap(~predictors, scales = "free_y")
+```
 
 ## Variable Selection (new GLM version)
 

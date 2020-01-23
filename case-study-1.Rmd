@@ -19,6 +19,7 @@ library(ordinal)
 library("ROCR")
 library("BMS")
 library(corrplot)
+library(gridExtra)
 library("BMA")
 ```
 
@@ -113,21 +114,21 @@ corrplot.mixed(cor(data %>% select(-starts_with("pcb_"), -albumin) %>% drop_na()
 
 We observe that PCB variations are positively correlated with one another, and that certain groups of variables are also correlated (education, occupation, and income; triglycerides and cholesterol; race and center; race and DDE; maternal age and triglycerides, etc.).
 
-```{r eda}
+```{r eda, echo=FALSE}
 # histogram of gestational age
-data %>% 
+gest_age_hist<-data %>% 
   filter(gestational_age < 60) %>% 
   ggplot(., aes(gestational_age)) + geom_histogram()
 
 # boxplot of outcome by race
-data %>% 
-  filter(gestational_age < 60) %>% 
-  ggplot(., aes(x=race, y=gestational_age)) + geom_boxplot()
+# data %>% 
+#   filter(gestational_age < 60) %>% 
+#   ggplot(., aes(x=race, y=gestational_age)) + geom_boxplot()
 
 # maternal age by outcome
-data %>% 
-  filter(gestational_age < 60) %>% 
-  ggplot(., aes(x=maternal_age, y=gestational_age, color=race)) + geom_point()
+# data %>% 
+#   filter(gestational_age < 60) %>% 
+#   ggplot(., aes(x=maternal_age, y=gestational_age, color=race)) + geom_point()
 
 # dde by outcome & colored by centers
 data %>% 
@@ -136,42 +137,42 @@ data %>%
   geom_smooth(method="lm", formula=y ~ x)
 
 # triglycerides by outcome
-data %>% 
-  filter(gestational_age < 60) %>% 
-  ggplot(., aes(x=triglycerides, y=gestational_age)) + geom_point() + 
-  geom_smooth(method="lm", formula=y ~ x)
+# data %>% 
+#   filter(gestational_age < 60) %>% 
+#   ggplot(., aes(x=triglycerides, y=gestational_age)) + geom_point() + 
+#   geom_smooth(method="lm", formula=y ~ x)
 
 # boxplot of outcome by center
-data %>% 
-  filter(gestational_age < 60) %>% 
-  ggplot(., aes(x=center, y=gestational_age)) + geom_boxplot()
+# data %>% 
+#   filter(gestational_age < 60) %>% 
+#   ggplot(., aes(x=center, y=gestational_age)) + geom_boxplot()
 
 # boxplot of outcome by smoking indicator
-data %>% 
-  filter(gestational_age < 60) %>% 
-  ggplot(., aes(x=smoking_status, y=gestational_age)) + geom_boxplot()
+# data %>% 
+#   filter(gestational_age < 60) %>% 
+#   ggplot(., aes(x=smoking_status, y=gestational_age)) + geom_boxplot()
 
 # cholesteral by outcome
-data %>% 
-  filter(gestational_age < 60) %>% 
-  ggplot(., aes(x=cholesterol, y=gestational_age)) + geom_point()
+# data %>% 
+#   filter(gestational_age < 60) %>% 
+#   ggplot(., aes(x=cholesterol, y=gestational_age)) + geom_point()
 
 # boxplot of race by outcome by center
-data %>% 
+race_center_boxplot<-data %>% 
   filter(gestational_age < 60) %>% 
   ggplot(aes(x=race, y=gestational_age, color=race)) + 
   geom_boxplot() + 
   facet_wrap(. ~ center) +
-  theme_bw()
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 # number of races per center
 data %>% 
   group_by(race, center) %>% 
   summarise(n_race=n())
 
-# log transform of outcoome
-data %>% 
-  ggplot(aes(log(gestational_age))) + geom_histogram()
+grid.arrange(gest_age_hist, race_center_boxplot, nrow=1, ncol=2)
+
 ```
 
 ```{r normality}
@@ -353,7 +354,12 @@ BIC(m1); BIC(m2); BIC(m3); BIC(m4)
 plot(m1); plot(m2); plot(m3); plot(m4)
 ```
 
-```{r}
+
+##Checking Logistic Model Assumptions
+
+Linearity of Covariates to Logit:
+
+```{r,echo=FALSE}
 probabilities<-predict(m1,type = "response")
 assump_data<-data %>%
   dplyr::select_if(is.numeric) %>% select(triglycerides,dde,avg_pcb)
@@ -363,11 +369,16 @@ mydata <- assump_data %>%
   gather(key = "predictors", value = "predictor.value", -logit)
 ```
 
-```{r}
+```{r linearity}
 ggplot(mydata, aes(logit, predictor.value))+
   geom_point(size = 0.5, alpha = 0.5) +
   geom_smooth(method = "loess") + 
   theme_bw() + 
   facet_wrap(~predictors, scales = "free_y")
+```
+
+Multicollinearity doesn't appear to be a concern.
+```{r multicol}
+car::vif(m1)
 ```
 
