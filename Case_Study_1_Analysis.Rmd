@@ -64,7 +64,7 @@ Longnecker_realistic<-Longnecker_realistic %>%
 
 #names(Longnecker_realistic)[11:22]<-paste(LETTERS[1:12],LETTERS[1:12],sep="_")
 
-Longnecker_realistic<-Longnecker_realistic %>% mutate(gestational_age=case_when(gestational_age<=36~0, gestational_age>36~1))
+Longnecker_realistic<-Longnecker_realistic %>% mutate(gestational_age=case_when(gestational_age<=35~0, gestational_age>35~1))
 
 bic.glm(x=Longnecker_realistic %>% select(-gestational_age),y=Longnecker_realistic$gestational_age,glm.family = "binomial")
 ```

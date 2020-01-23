@@ -59,7 +59,7 @@ These results are consistent with some of the trends we saw in our exploratory p
 ## 5: Appendix
 
 ```{r data, include=FALSE}
-data <- readRDS("data.rds")
+data <- readRDS("Longnecker.rds")
 data$smoking_status <- as.factor(data$smoking_status)
 data$center <- as.factor(data$center)
 ```
@@ -355,3 +355,22 @@ BIC(m1); BIC(m2); BIC(m3); BIC(m4)
 # residual plots
 plot(m1); plot(m2); plot(m3); plot(m4)
 ```
+
+```{r}
+probabilities<-predict(m1,type = "response")
+assump_data<-data %>%
+  dplyr::select_if(is.numeric) %>% select(triglycerides,dde,avg_pcb)
+predictors <- colnames(assump_data)
+assump_data["logit"]<-log(probabilities/(1-probabilities))
+mydata <- assump_data %>%
+  gather(key = "predictors", value = "predictor.value", -logit)
+```
+
+```{r}
+ggplot(mydata, aes(logit, predictor.value))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_smooth(method = "loess") + 
+  theme_bw() + 
+  facet_wrap(~predictors, scales = "free_y")
+```
+
