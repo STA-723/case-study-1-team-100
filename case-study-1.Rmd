@@ -1,0 +1,357 @@
+---
+title: "Case Study #1"
+author: "Shrey Gupta, Frances Hung, Ezinne Nwankwo"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE)
+library(magrittr)
+library(dplyr)
+library(tidyr)
+library("ggplot2")
+library(stringr)
+library("tidyverse")
+library("lubridate")
+library(readxl)
+library("lme4")
+library(ordinal)
+library("ROCR")
+library("BMS")
+library(corrplot)
+library("BMA")
+```
+
+## 0: Abstract
+
+## 1: Introduction
+
+We study how DDE (Dichlorodiphenyldichloroethylene) and PCBs (Polychlorinated Biphenyls) relate to risk of pre-mature delivery, which is associated with high risk of morbidity and mortality for the child. We use a sample of 2,380 women and children provided by Longnecker, et al. (2001) and initially provided by the National Collaborative Perinatal Project. DDE and PCBs have been used to treat crops, in order to limit their predation, and, as a result, are present in the environment and expose humans. These chemicals build up in fat in human tissues, and can have an impact on human health, including risk of pre-mature delivery.
+
+The data include various demographic variables (race, age, and socioeconomic index), smoking status, concentration doses of DDE and PCBs due to exposure, and cholesterol and triglycerides levels. We define pre-term pregnancy with a cut-off of 36 weeks or fewer, which tends to be the region around which there begins higher risk of morbidity and mortality for the child.
+
+## 2: Materials & Methods
+
+Since linear model assumptions (namely, normality of residuals) were not satisfied in this dataset, we instead chose to implement a logistic model. To satisfy the assumptions needed for logistic models, we modified our data. The model predicts whether an observation is pre-term (<=36 weeks) or around normal (>36 weeks), so the dependent variable, gestational age, is changed to be binary. Our observations are assumed to be independent from one another, and we use Bayesian Model Averaging (described later) to get rid of multicollinearity. We finally check that each predictor has a linear relationship with the logit function (this will be done later!! TODO).
+
+We first used Bayesian Model Averaging for generalized linear models to explore variable importance. Key variables with significant probabilities of inclusion were triglycerides, race, and DDE, and the noninclusion of other variables like maternal age and smoking status were corroborated by running a full naive GLM model. From our EDA analysis showing differences in gestational ages but similar racial trends across centers, we decided to add a random-effect intercept to the logistic model based on centers. Because the goal of this analysis was to assess effects of DDE and PCB on gestational age, we also included the average of the PCB variates as a covariate in our model. Our final model that we implemented was a logistic model with a random-effect intercept:
+
+MODEL HERE
+
+We evaluate model fit using BIC and AIC.
+
+## 3: Results
+
+### 3.1: Exploratory Data Analysis
+
+### 3.2: Main Results
+
+### 3.3: Sensitivity Analysis
+
+## 4: Discussion
+
+Our results find that the effect for average PCB is not significant, meaning there is no evidence of an association between PCB exposure and risk of pre-term delivery. However, higher DDE exposure is associated with higher risk of pre-term delivery. A one unit increase in DDE is associated with decreasing the expected odds of having a full-term pregnancy by approximately a factor of 2 (0.72 decrease in the expected log odds), holding everything else fixed. In addition, we find several other interesting pieces of insight. Higher triglycerides are associated with a higher risk of preterm delivery, as are being a non-white mother.
+
+TODO: advantages/disadvantages
+
+These results are consistent with some of the trends we saw in our exploratory plots and with current literature surrounding pre-term deliveries. Future directions for analysis include (1) sensitivity analysis on the number of weeks that defines a pre-term birth, (2) multiple category outcome model using Bayesian GLMM, and (3) accounting for natural ordering in outcome via a proportional odds model.
+
+## 5: Appendix
+
+```{r data, include=FALSE}
+data <- readRDS("data.rds")
+data$smoking_status <- as.factor(data$smoking_status)
+data$center <- as.factor(data$center)
+```
+
+```{r missingness, include=FALSE}
+# albumin has a lot of missingness (drop the entire column)
+complete_albumin <- data %>% filter(!is.na(albumin))
+percentage_missing_albumin <- 1 - nrow(complete_albumin)/nrow(data)
+percentage_missing_albumin
+
+# dde, triglycerides, race, age, smoking status, cholesterol
+# gestational age, center have no missingness
+data %>% filter(!is.na(dde))
+data %>% filter(!is.na(triglycerides)) 
+data %>% filter(!is.na(race)) 
+data %>% filter(!is.na(maternal_age)) 
+data %>% filter(!is.na(smoking_status)) 
+data %>% filter(!is.na(cholesterol)) 
+data %>% filter(!is.na(gestational_age)) 
+data %>% filter(!is.na(center)) 
+
+# pcb's are each missing 1 value
+data %>% filter(!is.na(pcb_028))
+data %>% filter(!is.na(pcb_052))
+data %>% filter(!is.na(pcb_074))
+data %>% filter(!is.na(pcb_105))
+data %>% filter(!is.na(pcb_118))
+data %>% filter(!is.na(pcb_153))
+data %>% filter(!is.na(pcb_170))
+data %>% filter(!is.na(pcb_138))
+data %>% filter(!is.na(pcb_180))
+data %>% filter(!is.na(pcb_194))
+data %>% filter(!is.na(pcb_203))
+
+# education, income, occupation have ~20% missingness
+data %>% filter(!is.na(score_education)) # 481 (~20%) missing
+data %>% filter(!is.na(score_income)) # 515 (~21%) missing
+data %>% filter(!is.na(score_occupation)) # 479 (~20%) missing
+
+# filtered dataset
+data <- data %>% filter_at(vars(pcb_028, pcb_052, pcb_074, pcb_105, 
+                                pcb_118, pcb_153, pcb_170, pcb_138, 
+                                pcb_180, pcb_194, pcb_203), all_vars(!is.na(.)))
+```
+
+```{r correlations}
+corrplot.mixed(cor(data %>% select(starts_with("pcb_")) %>% drop_na() %>% sapply(., as.numeric)),
+               order="hclust", tl.col="black")
+corrplot.mixed(cor(data %>% select(-starts_with("pcb_"), -albumin) %>% drop_na() %>%
+                     sapply(., as.numeric)), order="hclust", tl.col="black")
+```
+
+We observe that PCB variations are positively correlated with one another, and that certain groups of variables are also correlated (education, occupation, and income; triglycerides and cholesterol; race and center; race and DDE; maternal age and triglycerides, etc.).
+
+```{r eda}
+# histogram of gestational age
+data %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(gestational_age)) + geom_histogram()
+
+# boxplot of outcome by race
+data %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x=race, y=gestational_age)) + geom_boxplot()
+
+# maternal age by outcome
+data %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x=maternal_age, y=gestational_age, color=race)) + geom_point()
+
+# dde by outcome & colored by centers
+data %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x=dde, y=gestational_age, color=center)) + geom_point() + 
+  geom_smooth(method="lm", formula=y ~ x)
+
+# triglycerides by outcome
+data %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x=triglycerides, y=gestational_age)) +geom_point() + 
+  geom_smooth(method="lm", formula=y ~ x)
+
+# boxplot of outcome by center
+data %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x=center, y=gestational_age)) + geom_boxplot()
+
+# boxplot of outcome by smoking indicator
+data %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x=smoking_status, y=gestational_age)) + geom_boxplot()
+
+# cholesteral by outcome
+data %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(., aes(x=cholesterol, y=gestational_age)) + geom_point()
+
+# boxplot of race by outcome by center
+data %>% 
+  filter(gestational_age < 60) %>% 
+  ggplot(aes(x=race, y=gestational_age, color=race)) + 
+  geom_boxplot() + 
+  facet_wrap(.~center) +
+  theme_bw()
+
+# number of races per center
+data %>% 
+  group_by(race, center) %>% 
+  summarise(n_race=n())
+
+# log transform of outcoome
+data %>% 
+  ggplot(aes(log(gestational_age))) + geom_histogram()
+```
+
+```{r normality}
+data_realistic <- data %>% filter(gestational_age <= 50)
+hist(data_realistic$gestational_age, breaks=25)
+lm_model <- lm(gestational_age ~ ., data_realistic)
+plot(lm_model, which=2)
+```
+
+```{r summary stats}
+# summary stats for outcome by center
+samp_stats <- data %>% group_by(center) %>%
+  summarise(nj=n(), avg_gest=mean(gestational_age),
+            variance=var(gestational_age)) %>% data.frame()
+
+data %>% group_by(race) %>%
+  summarise(nj=n(), avg_gest=mean(gestational_age),
+            variance=var(gestational_age)) %>% data.frame() 
+
+samp_stats %>% ggplot(aes(x=center, y=nj)) + 
+  geom_bar(stat="identity", color="black", fill="#999999") + 
+  theme_bw()
+
+# plot summary stats
+g1 <- samp_stats %>% mutate(se=sqrt(variance)) %>% 
+  ggplot(aes(x=center, y=avg_gest, color=center)) +
+  geom_point() +
+  theme_bw() +
+  geom_errorbar(aes(ymin=avg_gest - se, ymax=avg_gest+se), width=.5) +
+  theme(legend.position="none",
+        axis.text.x=element_text(angle=90, size=7, vjust=0.5, hjust=1))
+g1
+
+# summary stats for outcome and dde by center
+samp_stats <- data %>% group_by(center) %>%
+  summarise(center_samp_size=n(), avg_gest=mean(gestational_age),
+            avg_dde=mean(dde)) 
+
+top_5 <- samp_stats %>% top_n(n=5, center_samp_size)
+bot_5 <- samp_stats %>% top_n(n=-5, center_samp_size)
+
+samp_stats %>% 
+  ggplot(aes(x=avg_dde, y=avg_gest, size=center_samp_size)) + 
+  geom_point(shape=21, fill="#F8766D") +
+  annotate("text", x=top_5$avg_dde + 1, y=top_5$avg_gest, label=top_5$center) +
+  annotate("text", x=bot_5$avg_dde - 1, y=bot_5$avg_gest, label=bot_5$center,
+           colour="red") +
+  theme_bw() +
+  labs(y="Average DDE per Center", x="Average Gestational Age per Center",
+       title="Average DDE versus Average Gestational Age per Center") 
+```
+
+```{r interaction EDA}
+# relationship between race and smoking status
+# no constant (or parallel), so indicates interactive effect
+data %>% ggplot() +
+  aes(x=race, color=smoking_status, group=smoking_status, y=gestational_age) +
+  stat_summary(fun.y=mean, geom="point") +
+  stat_summary(fun.y=mean, geom="line") + 
+  theme_bw()
+
+# relationship between age and smoking status
+# no constant (or parallel), so indicates interactive effect
+data %>% ggplot() +
+  aes(x=maternal_age, color=smoking_status, group=smoking_status,
+      y=gestational_age) +
+  stat_summary(fun.y=mean, geom="point") +
+  stat_summary(fun.y=mean, geom="line") + 
+  theme_bw()
+
+# relationship between race and age
+# no constant (or parallel), so indicates interactive effect
+data %>% ggplot() +
+  aes(x=maternal_age, color=race, group=race, y=gestational_age) +
+  stat_summary(fun.y=mean, geom="point") +
+  stat_summary(fun.y=mean, geom="line") + 
+  theme_bw()
+```
+
+```{r variable transformations}
+# transform gestational age to multi-class variable
+# ncbi.nlm.nih.gov/books/NBK279571/ (cutoffs for pre-term pregnancies)
+data <- data %>% 
+  mutate(gest_cat=cut(gestational_age, breaks=c(-Inf, 35, Inf), labels=c("preterm", "not_preterm"))) %>% 
+  rowwise() %>% 
+  mutate(min_pcb=min(pcb_028, pcb_052, pcb_074, pcb_105, pcb_118, pcb_153, pcb_170, pcb_180, pcb_194,
+                     pcb_203),
+         max_pcb=max(pcb_028, pcb_052, pcb_074, pcb_105, pcb_118, pcb_153, pcb_170, pcb_180, pcb_194,
+                     pcb_203),
+         avg_pcb=mean(c(pcb_028, pcb_052, pcb_074, pcb_105, pcb_118, pcb_153, pcb_170, pcb_180, pcb_194,
+                        pcb_203)))
+
+data %>% group_by(center, race) %>% summarise(n_cat=n())
+
+data %>% ggplot(aes(x=gest_cat, y=gestational_age)) + geom_boxplot() + 
+  facet_wrap(.~center) +
+  theme_bw()
+
+data %>% ggplot(aes(x=gest_cat, y=gestational_age, color=race)) + geom_boxplot() + 
+  facet_wrap(.~center) +
+  theme_bw() 
+```
+
+```{r, variable selection}
+# remove uninterpretable variables and albumin
+data_realistic <- data_realistic %>% 
+  select(-albumin, -score_education, -score_income, -score_occupation) %>% drop_na()
+
+data_realistic <- data_realistic %>%
+  mutate(pcb=data_realistic %>%
+           select(pcb=starts_with("pcb")) %>% rowSums()) %>% 
+  select(-starts_with("pcb_"))
+
+data_realistic <- data_realistic %>% mutate(gestational_age=case_when(gestational_age <= 36 ~ 0,
+                                                                      gestational_age > 36 ~ 1))
+
+bic.glm(x=data_realistic %>% select(-gestational_age), y=data_realistic$gestational_age,
+        glm.family="binomial")
+```
+
+```{r lmm models, eval=FALSE}
+# model w/ random intercept for centers 
+m1 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + race + min_pcb +
+           max_pcb + avg_pcb + (1|center), data=data, REML=FALSE)
+summary(m1)
+
+# model w/ random slope for race 
+m2 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + min_pcb + max_pcb +
+           avg_pcb + (0 + race|center), data=data, REML=FALSE)
+summary(m2)
+
+# model w/ random slope for race and random intercept for centers
+m3 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + min_pcb + max_pcb +
+           avg_pcb + (1 + race|center), data=data, REML=FALSE,
+           control=lmerControl(optimizer="Nelder_Mead"))
+summary(m3) # might be overfitting
+
+# simple linear regression model
+m4 <- lm(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + race + min_pcb +
+         max_pcb + avg_pcb + cholesterol, data=data)
+summary(m4)
+
+# simple linear regression model using BMA variable selection
+m5 <- lm(gestational_age ~ triglycerides + race + center + dde + max_pcb + min_pcb + avg_pcb, data=data)
+summary(m5)
+
+# model fits
+BIC(m1); BIC(m2); BIC(m3); BIC(m4); BIC(m5)
+
+# residual plots
+plot(m1); plot(m2); plot(m3); plot(m4); plot(m5)
+```
+
+```{r glmm models}
+# model w/ random intercept for centers 
+m1 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100)+ avg_pcb + race + (1|center), family=binomial,
+            control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)), data=data) 
+summary(m1)
+
+# model w/ random slope for race 
+m2 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100) + avg_pcb + race + (0 + race|center),
+            family=binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)),
+            data=data)
+summary(m2)
+
+# model w/ random slope for race and random intercept for centers
+m3 <- glmer(gest_cat ~ I(triglycerides/100) + I(dde/100) + avg_pcb + race + (race|center),
+            family=binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)),
+            data=data) 
+summary(m3)
+
+# simple model
+m4 <- glm(gest_cat ~ 1 + I(triglycerides/100) + I(dde/100) + center + avg_pcb + race, family=binomial,
+          data=data)
+summary(m4)
+
+# model fits
+BIC(m1); BIC(m2); BIC(m3); BIC(m4)
+
+# residual plots
+plot(m1); plot(m2); plot(m3); plot(m4)
+```
