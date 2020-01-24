@@ -1,6 +1,8 @@
 ---
 title: "Case Study #1"
 author: "Shrey Gupta, Frances Hung, Ezinne Nwankwo"
+header-includes:
+   - \usepackage{amsmath}
 output: pdf_document
 ---
 
@@ -27,7 +29,7 @@ library("BMA")
 
 ## 1: Introduction
 
-We study how DDE (Dichlorodiphenyldichloroethylene) and PCBs (Polychlorinated Biphenyls) relate to risk of premature delivery, which is associated with higher risk of morbidity and mortality for the child. We use a sample of 2,380 women and children from Longnecker, et al. (2001) initially provided by the National Collaborative Perinatal Project. DDE and PCBs have been used to treat crops in order to limit their predation, and, as a result of their non-biodegradability, remain present in environments where humans can be exposed to them. These chemicals build up in fat in human tissues, and can have an impact on human health, including risk of premature delivery.
+We study how DDE (Dichlorodiphenyldichloroethylene) and PCBs (Polychlorinated Biphenyls) relate to risk of premature delivery, which is associated with higher risk of morbidity and mortality for the newborn. We use a sample of 2,380 women and children from Longnecker, et al. (2001) initially provided by the National Collaborative Perinatal Project. DDE and PCBs have been used to treat crops in order to limit their predation, and, as a result of their non-biodegradability, remain present in environments where humans can be exposed to them. These chemicals build up in fat in human tissues, and can have an impact on human health, including risk of premature delivery.
 
 The data include various demographic variables (race, age, and socioeconomic index), smoking status, concentration doses of DDE and PCBs due to exposure, and cholesterol and triglycerides levels. We define pre-term pregnancy with a cut-off of 36 weeks or fewer, which tends to be the region around which there begins higher risk of morbidity and mortality for the child.
 
@@ -35,9 +37,11 @@ The data include various demographic variables (race, age, and socioeconomic ind
 
 Since linear model assumptions (namely, normality of residuals) were not satisfied in this dataset, we instead chose to implement a logistic model. To satisfy the assumptions needed for logistic models, we modified our data. The model predicts whether an observation is pre-term (<=36 weeks) or around normal (>36 weeks), so the dependent variable, gestational age, is changed to be binary. Our observations are assumed to be independent from one another, and we use variation inflation factors and Bayesian Model Averaging (described later) to get rid of multicollinearity. One assumption, that the predictors have a linear relationship with the logit function, was not totally satisfied, but our model still managed to capture inferential trends; we are looking for a model which captures the general relationship between DDE and gestational age, not an accurate predictive model.
 
-We first used Bayesian Model Averaging for generalized linear models to explore variable importance. Key variables with significant probabilities of inclusion were triglycerides, race, and DDE, and the noninclusion of other variables like maternal age and smoking status were corroborated by running a full naive GLM model. We double check the multicollinearity of our chosen variables by looking at variable inflation factors and conclude that these variables are not significantly correlated. From our EDA analysis showing differences in gestational ages but similar racial trends across centers, we decided to add a random-effect intercept to the logistic model based on centers. Because the goal of this analysis was to assess effects of DDE and PCB on gestational age, we also included the average of the PCB variates as a covariate in our model. Our final model that we implemented was a logistic model with a random-effect intercept:
+Since a substantial portion of observations didn't have an albumin measurement, we disregarded it in our analysis. Due to the lack of interpretability and missingness of the scores for education, occupation, and income, we also didn't consider using these variables in our model. Getting rid of these covariates in our analysis removed most of the missingness from our dataset.
 
-$$\texttt{gest_age}\sim\texttt{(1|center)+triglycerides+race+DDE+avg_pcb}$$
+We first used Bayesian Model Averaging for generalized linear models to explore variable importance. Key variables with significant probabilities of inclusion were triglycerides, centers, and DDE, and the noninclusion of other variables like maternal age and smoking status were corroborated by running a full naive GLM model. We double check the multicollinearity of our chosen variables by looking at variable inflation factors and conclude that these variables are not significantly correlated. From our EDA analysis showing differences in gestational ages but similar racial trends across centers, we decided to add a random-effect intercept to the logistic model based on centers. Because the goal of this analysis was to assess effects of DDE and PCB on gestational age, we also included the average of the PCB variates as a covariate in our model. Our final model that we implemented was a logistic model with a random-effect intercept:
+
+
 
 We evaluate model fit using BIC and AIC.
 
@@ -105,7 +109,8 @@ data <- data %>% filter_at(vars(pcb_028, pcb_052, pcb_074, pcb_105,
                                 pcb_180, pcb_194, pcb_203), all_vars(!is.na(.)))
 ```
 
-```{r correlations}
+```{r correlations,fig.height=5,fig.width=10}
+par(mfrow=c(1,2))
 corrplot.mixed(cor(data %>% select(starts_with("pcb_")) %>% drop_na() %>% sapply(., as.numeric)),
                order="hclust", tl.col="black")
 corrplot.mixed(cor(data %>% select(-starts_with("pcb_"), -albumin) %>% drop_na() %>%
@@ -118,7 +123,7 @@ We observe that PCB variations are positively correlated with one another, and t
 # histogram of gestational age
 gest_age_hist<-data %>% 
   filter(gestational_age < 60) %>% 
-  ggplot(., aes(gestational_age)) + geom_histogram() + ggtitle(label="")
+  ggplot(., aes(gestational_age)) + geom_histogram() + ggtitle(label="Histogram of Gestational Ages")
 
 # boxplot of outcome by race
 # data %>% 
@@ -164,7 +169,8 @@ race_center_boxplot<-data %>%
   geom_boxplot() + 
   facet_wrap(. ~ center) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("Gestational Age by Race and Center")
 
 # number of races per center
 data %>% 
@@ -176,9 +182,10 @@ grid.arrange(gest_age_hist, race_center_boxplot, nrow=1, ncol=2)
 ```
 
 ```{r normality}
-data_realistic <- data %>% filter(gestational_age <= 50)
+data_realistic <- data %>% filter(gestational_age <= 60)
 hist(data_realistic$gestational_age, breaks=25)
 lm_model <- lm(gestational_age ~ ., data_realistic)
+par(mfrow=c(1,2))
 plot(lm_model, which=2)
 ```
 
@@ -255,7 +262,7 @@ data %>% ggplot() +
 # transform gestational age to multi-class variable
 # ncbi.nlm.nih.gov/books/NBK279571/ (cutoffs for pre-term pregnancies)
 data <- data %>% 
-  mutate(gest_cat=cut(gestational_age, breaks=c(-Inf, 35, Inf), labels=c("preterm", "not_preterm"))) %>% 
+  mutate(gest_cat=cut(gestational_age, breaks=c(-Inf, 37, Inf), labels=c("preterm", "not_preterm"))) %>% 
   rowwise() %>% 
   mutate(min_pcb=min(pcb_028, pcb_052, pcb_074, pcb_105, pcb_118, pcb_153, pcb_170, pcb_180, pcb_194,
                      pcb_203),
@@ -275,6 +282,8 @@ data %>% ggplot(aes(x=gest_cat, y=gestational_age, color=race)) + geom_boxplot()
   theme_bw() 
 ```
 
+## BMA for GLM
+
 ```{r, variable selection}
 # remove uninterpretable variables and albumin
 data_realistic <- data_realistic %>% 
@@ -291,37 +300,37 @@ bic.glm(x=data_realistic %>% select(-gestational_age), y=data_realistic$gestatio
         glm.family="binomial")
 ```
 
-```{r lmm models, eval=FALSE}
-# model w/ random intercept for centers 
-m1 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + race + min_pcb +
-           max_pcb + avg_pcb + (1|center), data=data, REML=FALSE)
-summary(m1)
+```{r lmm models, eval=FALSE, echo=FALSE}
+# # model w/ random intercept for centers 
+# m1 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + race + min_pcb +
+#            max_pcb + avg_pcb + (1|center), data=data, REML=FALSE)
+# summary(m1)
+# 
+# # model w/ random slope for race 
+# m2 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + min_pcb + max_pcb +
+#            avg_pcb + (0 + race|center), data=data, REML=FALSE)
+# summary(m2)
+# 
+# # model w/ random slope for race and random intercept for centers
+# m3 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + min_pcb + max_pcb +
+#            avg_pcb + (1|center) + (race|center), data=data, REML=FALSE,
+#            control=lmerControl(optimizer="Nelder_Mead"))
+# summary(m3) # might be overfitting
+# 
+# # simple linear regression model
+# m4 <- lm(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + race + min_pcb +
+#          max_pcb + avg_pcb + cholesterol, data=data)
+# summary(m4)
 
-# model w/ random slope for race 
-m2 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + min_pcb + max_pcb +
-           avg_pcb + (0 + race|center), data=data, REML=FALSE)
-summary(m2)
-
-# model w/ random slope for race and random intercept for centers
-m3 <- lmer(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + min_pcb + max_pcb +
-           avg_pcb + (1|center) + (race|center), data=data, REML=FALSE,
-           control=lmerControl(optimizer="Nelder_Mead"))
-summary(m3) # might be overfitting
-
-# simple linear regression model
-m4 <- lm(gestational_age ~ dde + triglycerides + smoking_status*maternal_age + race + min_pcb +
-         max_pcb + avg_pcb + cholesterol, data=data)
-summary(m4)
-
-# simple linear regression model using BMA variable selection
-m5 <- lm(gestational_age ~ triglycerides + race + center + dde + max_pcb + min_pcb + avg_pcb, data=data)
-summary(m5)
-
-# model fits
-BIC(m1); BIC(m2); BIC(m3); BIC(m4); BIC(m5)
-
-# residual plots
-plot(m1); plot(m2); plot(m3); plot(m4); plot(m5)
+# # simple linear regression model using BMA variable selection
+# m5 <- lm(gestational_age ~ triglycerides + race + center + dde + max_pcb + min_pcb + avg_pcb, data=data)
+# summary(m5)
+# 
+# # model fits
+# BIC(m1); BIC(m2); BIC(m3); BIC(m4); BIC(m5)
+# 
+# # residual plots
+# plot(m1); plot(m2); plot(m3); plot(m4); plot(m5)
 ```
 
 ```{r glmm models}
